@@ -1,99 +1,101 @@
-//<div class="container-fluid text-white" style="background: rgba(0, 0, 0, 0) url('img/messaging.jpeg') no-repeat scroll center center / cover ; min-height: 100vh;">           
 (function ($) {
-	$.fn.countTo = function (options) {
-		options = options || {};
-		
-		return $(this).each(function () {
-			// set options for current element
-			var settings = $.extend({}, $.fn.countTo.defaults, {
-				from:            $(this).data('from'),
-				to:              $(this).data('to'),
-				speed:           $(this).data('speed'),
-				refreshInterval: $(this).data('refresh-interval'),
-				decimals:        $(this).data('decimals')
-			}, options);
-			
-			// how many times to update the value, and how much to increment the value on each update
-			var loops = Math.ceil(settings.speed / settings.refreshInterval),
-				increment = (settings.to - settings.from) / loops;
-			
-			// references & variables that will change with each update
-			var self = this,
-				$self = $(this),
-				loopCount = 0,
-				value = settings.from,
-				data = $self.data('countTo') || {};
-			
-			$self.data('countTo', data);
-			
-			// if an existing interval can be found, clear it first
-			if (data.interval) {
-				clearInterval(data.interval);
-			}
-			data.interval = setInterval(updateTimer, settings.refreshInterval);
-			
-			// initialize the element with the starting value
-			render(value);
-			
-			function updateTimer() {
-				value += increment;
-				loopCount++;
-				
-				render(value);
-				
-				if (typeof(settings.onUpdate) == 'function') {
-					settings.onUpdate.call(self, value);
-				}
-				
-				if (loopCount >= loops) {
-					// remove the interval
-					$self.removeData('countTo');
-					clearInterval(data.interval);
-					value = settings.to;
-					
-					if (typeof(settings.onComplete) == 'function') {
-						settings.onComplete.call(self, value);
-					}
-				}
-			}
-			
-			function render(value) {
-				var formattedValue = settings.formatter.call(self, value, settings);
-				$self.html(formattedValue);
-			}
-		});
-	};
-	
-	$.fn.countTo.defaults = {
-		from: 0,               // the number the element should start at
-		to: 0,                 // the number the element should end at
-		speed: 1000,           // how long it should take to count between the target numbers
-		refreshInterval: 100,  // how often the element should be updated
-		decimals: 0,           // the number of decimal places to show
-		formatter: formatter,  // handler for formatting the value before rendering
-		onUpdate: null,        // callback method for every time the element is updated
-		onComplete: null       // callback method for when the element finishes updating
-	};
-	
-	function formatter(value, settings) {
-		return value.toFixed(settings.decimals);
-	}
-}(jQuery));
+    "use strict";
 
-jQuery(function ($) {
-  // custom formatting example
-  $('.count-number').data('countToOptions', {
-	formatter: function (value, options) {
-	  return value.toFixed(options.decimals).replace(/\B(?=(?:\d{3})+(?!\d))/g, ',');
-	}
-  });
-  
-  // start all the timers
-  $('.timer').each(count);  
-  
-  function count(options) {
-	var $this = $(this);
-	options = $.extend({}, options || {}, $this.data('countToOptions') || {});
-	$this.countTo(options);
-  }
-});
+    $.fn.counterUp = function (options) {
+
+        // Defaults
+        var settings = $.extend({
+                'time': 400,
+                'delay': 10,
+                'formatter': false,
+                callback: function () {
+                }
+            }, options),
+            s;
+
+        return this.each(function () {
+
+            // Store the object
+            var $this = $(this),
+                counter = {
+                    time: $(this).data('counterup-time') || settings.time,
+                    delay: $(this).data('counterup-delay') || settings.delay
+                };
+
+            var counterUpper = function () {
+                var nums = [];
+                var divisions = counter.time / counter.delay;
+                var num = $this.text();
+                var isComma = /[0-9]+,[0-9]+/.test(num);
+                num = num.replace(/,/g, '');
+                var decimalPlaces = (num.split('.')[1] || []).length;
+
+                var isTime = /[0-9]+:[0-9]+:[0-9]+/.test(num);
+
+                // Convert time to total seconds
+                if (isTime) {
+                    var times = num.split(':'),
+                        m = 1;
+                    s = 0;
+                    while (times.length > 0) {
+                        s += m * parseInt(times.pop(), 10);
+                        m *= 60;
+                    }
+                }
+
+                // Generate list of incremental numbers to display
+                for (var i = divisions; i >= 1; i--) {
+
+                    var newNum = parseFloat(num / divisions * i).toFixed(decimalPlaces);
+
+                    // Add incremental seconds and convert back to time
+                    if (isTime) {
+                        newNum = parseInt(s / divisions * i);
+                        var hours = parseInt(newNum / 3600) % 24;
+                        var minutes = parseInt(newNum / 60) % 60;
+                        var seconds = parseInt(newNum % 60, 10);
+                        newNum = (hours < 10 ? "0" + hours : hours) + ":" + (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds);
+                    }
+
+                    // Preserve commas if input had commas
+                    if (isComma) {
+                        while (/(\d+)(\d{3})/.test(newNum.toString())) {
+                            newNum = newNum.toString().replace(/(\d+)(\d{3})/, '$1' + ',' + '$2');
+                        }
+                    }
+                    if (settings.formatter) {
+                        newNum = settings.formatter.call(this, newNum);
+                    }
+                    nums.unshift(newNum);
+                }
+
+                $this.data('counterup-nums', nums);
+                $this.text('0');
+
+                // Updates the number until we're done
+                var f = function () {
+                    $this.html($this.data('counterup-nums').shift());
+                    if ($this.data('counterup-nums').length) {
+                        setTimeout($this.data('counterup-func'), counter.delay);
+                    } else {
+                        $this.data('counterup-nums', null);
+                        $this.data('counterup-func', null);
+                        settings.callback.call(this);
+                    }
+                };
+                $this.data('counterup-func', f);
+
+                // Start the count up
+                setTimeout($this.data('counterup-func'), counter.delay);
+            };
+
+            // Perform counts when the element gets into view
+            $this.waypoint(function (direction) {
+                counterUpper();
+                this.destroy(); //-- Waypoint 3.0 version of triggerOnce
+            }, {offset: '100%'});
+        });
+
+    };
+
+})(jQuery);
